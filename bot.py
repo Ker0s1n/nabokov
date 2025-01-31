@@ -46,9 +46,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def caps(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_caps = " ".join(context.args).upper()
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id, text=text_caps
-    )
+    await context.bot.send_message(chat_id=update.effective_chat.id, text=text_caps)
 
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -103,9 +101,7 @@ def extract_status_change(
     return was_member, is_member
 
 
-async def track_chats(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def track_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Tracks the chats the bot is in."""
     result = extract_status_change(update.my_chat_member)
     if result is None:
@@ -130,30 +126,20 @@ async def track_chats(
             context.bot_data.setdefault("user_ids", set()).discard(chat.id)
     elif chat.type in [Chat.GROUP, Chat.SUPERGROUP]:
         if not was_member and is_member:
-            logger.info(
-                "%s added the bot to the group %s", cause_name, chat.title
-            )
+            logger.info("%s added the bot to the group %s", cause_name, chat.title)
             context.bot_data.setdefault("group_ids", set()).add(chat.id)
         elif was_member and not is_member:
-            logger.info(
-                "%s removed the bot from the group %s", cause_name, chat.title
-            )
+            logger.info("%s removed the bot from the group %s", cause_name, chat.title)
             context.bot_data.setdefault("group_ids", set()).discard(chat.id)
     elif not was_member and is_member:
-        logger.info(
-            "%s added the bot to the channel %s", cause_name, chat.title
-        )
+        logger.info("%s added the bot to the channel %s", cause_name, chat.title)
         context.bot_data.setdefault("channel_ids", set()).add(chat.id)
     elif was_member and not is_member:
-        logger.info(
-            "%s removed the bot from the channel %s", cause_name, chat.title
-        )
+        logger.info("%s removed the bot from the channel %s", cause_name, chat.title)
         context.bot_data.setdefault("channel_ids", set()).discard(chat.id)
 
 
-async def show_chats(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Shows which chats the bot is in"""
     user_ids = ", ".join(
         str(uid) for uid in context.bot_data.setdefault("user_ids", set())
@@ -206,9 +192,7 @@ async def start_private_chat(
     """
     user_name = update.effective_user.full_name
     chat = update.effective_chat
-    if chat.type != Chat.PRIVATE or chat.id in context.bot_data.get(
-        "user_ids", set()
-    ):
+    if chat.type != Chat.PRIVATE or chat.id in context.bot_data.get("user_ids", set()):
         return
 
     logger.info("%s started a private chat with the bot", user_name)
@@ -219,35 +203,38 @@ async def start_private_chat(
     )
 
 
-# async def notify_admins(update: Update, context: ContextTypes.DEFAULT_TYPE):
-#     user = update.message.left_chat_member
-#     chat_id = update.message.chat_id
+# Функция для получения списка админов
+async def get_admin_ids(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> list:
+    admins = await context.bot.get_chat_administrators(chat_id)
+    return [admin.user.id for admin in admins]
 
-#     # Получаем список администраторов группы
-#     admins = await context.bot.get_chat_administrators(chat_id)
+# Функция для уведомления админов
+async def notify_admins(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_name: str):
+    admin_ids = await get_admin_ids(context, chat_id)
+    message = f"Пользователь {user_name} вышел из группы."
+    for admin_id in admin_ids:
+        await context.bot.send_message(chat_id=admin_id, text=message)
 
-#     # Формируем сообщение
-#     message = f"Пользователь {user.first_name} вышел из группы."
-
-#     # Отправляем сообщение каждому администратору
-#     for admin in admins:
-#         await context.bot.send_message(chat_id=admin.user.id, text=message)
+# Обработчик события выхода пользователя из группы
+async def track_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Проверяем, что это событие выхода из группы
+    if update.chat_member.new_chat_member.status == 'left':
+        user_name = update.chat_member.new_chat_member.user.full_name
+        chat_id = update.chat_member.chat.id
+        await notify_admins(context, chat_id, user_name)
 
 
 def main() -> None:
     application = ApplicationBuilder().token(os.getenv("TOKEN")).build()
 
     start_handler = CommandHandler("start", start)
-    echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), echo)
+    # echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), echo)
     caps_handler = CommandHandler("caps", caps)
     inline_caps_handler = InlineQueryHandler(inline_caps)
-    # leave_handler = MessageHandler(
-    #     filters.StatusUpdate._LeftChatMember, notify_admins
-    # )
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
 
     application.add_handler(start_handler)
-    application.add_handler(echo_handler)
+    # application.add_handler(echo_handler)
     application.add_handler(caps_handler)
     application.add_handler(inline_caps_handler)
     # Keep track of which chats the bot is in
@@ -264,7 +251,7 @@ def main() -> None:
     # Interpret any other command or text message as a start of a private chat.
     # This will record the user as being in a private chat with bot.
     application.add_handler(MessageHandler(filters.ALL, start_private_chat))
-    # application.add_handler(leave_handler)
+    application.add_handler(ChatMemberHandler(track_chat_members))
     application.add_handler(unknown_handler)
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
