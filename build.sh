@@ -5,4 +5,4 @@ source $HOME/.local/bin/env
 set -o errexit
 
 # Modify this line as needed for your package manager (pip, poetry, etc.)
-uv sync --all-packages
+uv sync
