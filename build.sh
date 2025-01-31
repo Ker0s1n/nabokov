@@ -6,5 +6,5 @@ set -o errexit
 
 # Modify this line as needed for your package manager (pip, poetry, etc.)
 uv sync
-reboot
-source .venv/bin/activate
+
+python nabokov_admin.py
