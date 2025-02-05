@@ -8,6 +8,7 @@
 
 ARG PYTHON_VERSION=3.13.0
 FROM python:${PYTHON_VERSION}-slim AS base
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Prevents Python from writing pyc files.
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -34,15 +35,17 @@ RUN adduser \
 # Leverage a cache mount to /root/.cache/pip to speed up subsequent builds.
 # Leverage a bind mount to requirements.txt to avoid having to copy them into
 # into this layer.
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install -r requirements.txt
-
-# Switch to the non-privileged user to run the application.
-USER appuser
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project
 
 # Copy the source code into the container.
 COPY . .
+
+# Sync the project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
 
 # Use parametres from env
 ENV TOKEN=${TOKEN}
@@ -51,4 +54,4 @@ ENV TOKEN=${TOKEN}
 EXPOSE 8000
 
 # Run the application.
-CMD ["python", "bot/main.py"]
+CMD ["uv", "run", "python", "bot/main.py"]
