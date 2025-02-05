@@ -16,7 +16,7 @@ services:
     container_name: telegram_bot
     restart: unless-stopped
     environment:
-      - TOKEN=${TOKEN}  # Токен бота из .env
+      - TOKEN=${TOKEN}
     volumes:
       - .:/app
       - ./bot.db:/app/bot.db
