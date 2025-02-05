@@ -2,7 +2,11 @@ import logging
 import os
 from typing import Optional
 
+from database.db import create_connection, create_tables
+from database.models import Message, User
 from dotenv import load_dotenv
+from handlers.command_handler import find_command, start_command
+from handlers.message_handler import save_message, save_user
 from telegram import Chat, ChatMember, ChatMemberUpdated, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -16,14 +20,35 @@ from telegram.ext import (
 
 load_dotenv()
 
+# Настройка логирования
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
-# Токен твоего бота
-TOKEN = os.getenv("TOKEN")
+# Инициализация базы данных
+conn = create_connection("bot.db")
+if conn is not None:
+    create_tables(conn)
+else:
+    logger.error("Не удалось подключиться к базе данных.")
+
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обрабатывает входящие сообщения."""
+    message = update.message
+    save_message(
+        conn, Message(message.chat.id, message.from_user.id, message.text)
+    )
+    save_user(
+        conn,
+        User(
+            message.from_user.id,
+            message.from_user.username,
+            message.from_user.full_name,
+        ),
+    )
 
 
 def extract_status_change(
@@ -56,7 +81,9 @@ def extract_status_change(
     return was_member, is_member
 
 
-async def track_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def track_chats(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Tracks the chats the bot is in."""
     result = extract_status_change(update.my_chat_member)
     if result is None:
@@ -81,20 +108,30 @@ async def track_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             context.bot_data.setdefault("user_ids", set()).discard(chat.id)
     elif chat.type in [Chat.GROUP, Chat.SUPERGROUP]:
         if not was_member and is_member:
-            logger.info("%s added the bot to the group %s", cause_name, chat.title)
+            logger.info(
+                "%s added the bot to the group %s", cause_name, chat.title
+            )
             context.bot_data.setdefault("group_ids", set()).add(chat.id)
         elif was_member and not is_member:
-            logger.info("%s removed the bot from the group %s", cause_name, chat.title)
+            logger.info(
+                "%s removed the bot from the group %s", cause_name, chat.title
+            )
             context.bot_data.setdefault("group_ids", set()).discard(chat.id)
     elif not was_member and is_member:
-        logger.info("%s added the bot to the channel %s", cause_name, chat.title)
+        logger.info(
+            "%s added the bot to the channel %s", cause_name, chat.title
+        )
         context.bot_data.setdefault("channel_ids", set()).add(chat.id)
     elif was_member and not is_member:
-        logger.info("%s removed the bot from the channel %s", cause_name, chat.title)
+        logger.info(
+            "%s removed the bot from the channel %s", cause_name, chat.title
+        )
         context.bot_data.setdefault("channel_ids", set()).discard(chat.id)
 
 
-async def show_chats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_chats(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Shows which chats the bot is in"""
     user_ids = ", ".join(
         str(uid) for uid in context.bot_data.setdefault("user_ids", set())
@@ -146,11 +183,11 @@ async def greet_chat_members(
     admins = await get_chat_admins(update.effective_chat.id, context)
 
     if not was_member and is_member:
-        # Уведомление в чат
-        await update.effective_chat.send_message(
-            f"{member_name} was added by {cause_name}. Welcome!",
-            parse_mode=ParseMode.HTML,
-        )
+        # Уведомление в чат отключено за ненадобностью
+        # await update.effective_chat.send_message(
+        #     f"{member_name} was added by {cause_name}. Welcome!",
+        #     parse_mode=ParseMode.HTML,
+        # )
         # Уведомление всем администраторам
         for admin_id in admins:
             await context.bot.send_message(
@@ -159,11 +196,11 @@ async def greet_chat_members(
                 parse_mode=ParseMode.HTML,
             )
     elif was_member and not is_member:
-        # Уведомление в чат
-        await update.effective_chat.send_message(
-            f"{member_name} is no longer with us. Thanks a lot, {cause_name} ...",
-            parse_mode=ParseMode.HTML,
-        )
+        # Уведомление в чат отключено за ненадобностью
+        # await update.effective_chat.send_message(
+        #     f"{member_name} is no longer with us. Thanks a lot, {cause_name} ...",
+        #     parse_mode=ParseMode.HTML,
+        # )
         # Уведомление всем администраторам
         for admin_id in admins:
             await context.bot.send_message(
@@ -171,30 +208,6 @@ async def greet_chat_members(
                 text=f"🔴 {member_name} был удален из чата {update.effective_chat.title} пользователем {cause_name}.",
                 parse_mode=ParseMode.HTML,
             )
-
-
-# async def greet_chat_members(
-#     update: Update, context: ContextTypes.DEFAULT_TYPE
-# ) -> None:
-#     """Greets new users in chats and announces when someone leaves"""
-#     result = extract_status_change(update.chat_member)
-#     if result is None:
-#         return
-
-#     was_member, is_member = result
-#     cause_name = update.chat_member.from_user.mention_html()
-#     member_name = update.chat_member.new_chat_member.user.mention_html()
-
-#     if not was_member and is_member:
-#         await update.effective_chat.send_message(
-#             f"{member_name} was added by {cause_name}. Welcome!",
-#             parse_mode=ParseMode.HTML,
-#         )
-#     elif was_member and not is_member:
-#         await update.effective_chat.send_message(
-#             f"{member_name} is no longer with us. Thanks a lot, {cause_name} ...",
-#             parse_mode=ParseMode.HTML,
-#         )
 
 
 async def start_private_chat(
@@ -206,7 +219,9 @@ async def start_private_chat(
     """
     user_name = update.effective_user.full_name
     chat = update.effective_chat
-    if chat.type != Chat.PRIVATE or chat.id in context.bot_data.get("user_ids", set()):
+    if chat.type != Chat.PRIVATE or chat.id in context.bot_data.get(
+        "user_ids", set()
+    ):
         return
 
     logger.info("%s started a private chat with the bot", user_name)
@@ -217,23 +232,26 @@ async def start_private_chat(
     )
 
 
-# Основная функция
-def main() -> None:
-    application = Application.builder().token(TOKEN).build()
+def main():
+    """Запускает бота."""
+    application = Application.builder().token(os.getenv("TOKEN")).build()
 
-    # Keep track of which chats the bot is in
+    # Регистрация обработчиков
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("find", find_command))
+    application.add_handler(
+        MessageHandler(filters.ALL & ~filters.COMMAND, handle_message)
+    )
     application.add_handler(
         ChatMemberHandler(track_chats, ChatMemberHandler.MY_CHAT_MEMBER)
     )
     application.add_handler(CommandHandler("show_chats", show_chats))
-    # Handle members joining/leaving chats.
     application.add_handler(
         ChatMemberHandler(greet_chat_members, ChatMemberHandler.CHAT_MEMBER)
     )
-    # Interpret any other command or text message as a start of a private chat.
-    # This will record the user as being in a private chat with bot.
     application.add_handler(MessageHandler(filters.ALL, start_private_chat))
 
+    # Запуск бота
     application.run_polling()
 
 
