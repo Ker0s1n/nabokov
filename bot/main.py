@@ -2,11 +2,11 @@ import logging
 import os
 from typing import Optional
 
-from bot.database.db import create_connection, create_tables
-from bot.database.models import Message, User
+from database.db import create_connection, create_tables
+from database.models import Message, User
 from dotenv import load_dotenv
-from bot.handlers.command_handler import find_command, start_command
-from bot.handlers.message_handler import save_message, save_user
+from handlers.command_handler import find_command, start_command
+from handlers.message_handler import save_message, save_user
 from telegram import Chat, ChatMember, ChatMemberUpdated, Update
 from telegram.constants import ParseMode
 from telegram.ext import (

@@ -1,4 +1,4 @@
-from bot.database.db import create_connection
+from database.db import create_connection
 from telegram import ReplyKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
