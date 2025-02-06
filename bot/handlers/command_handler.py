@@ -43,6 +43,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👋 Привет! Я бот, который помогает управлять группой и искать сообщения.\n\n"
         "Вот список доступных команд:"
     )
-    commands = [["/start", "/find #info"],]
+    commands = [["/start", "/find #info", "/show_chats"],]
     reply_markup = ReplyKeyboardMarkup(commands, resize_keyboard=True)
     await update.message.reply_text(welcome_text, reply_markup=reply_markup)
