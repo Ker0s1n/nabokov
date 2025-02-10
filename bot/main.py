@@ -166,7 +166,7 @@ async def greet_chat_members(
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обрабатывает входящие сообщения."""
     message = update.message
-    if not message.from_user.is_bot:
+    if message.text is not None:
         save_message(
             conn, Message(message.chat.id, message.from_user.id, message.text)
         )

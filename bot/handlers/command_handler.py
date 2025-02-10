@@ -1,10 +1,17 @@
 from database.db import create_connection
-from telegram import ReplyKeyboardMarkup, Update
+from telegram import Update
 from telegram.ext import ContextTypes
+from utils.admin_check import is_admin
 
 
 async def find_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ищет сообщения по хештегу."""
+    """Ищет сообщения по хештегу (только для администраторов)."""
+    if not await is_admin(update, context):
+        await update.message.reply_text(
+            "🚫 Эта команда доступна только администраторам."
+        )
+        return
+
     hashtag = context.args[0].lower() if context.args else None
     if not hashtag or "#" not in hashtag:
         await update.message.reply_text(
@@ -39,10 +46,5 @@ async def find_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Приветствует пользователя и показывает доступные команды."""
-    welcome_text = (
-        "👋 Привет! Я бот, который помогает управлять группой и искать сообщения.\n\n"
-        "Вот список доступных команд:"
-    )
-    commands = [["/start", "/find #info", "/show_chats"],]
-    reply_markup = ReplyKeyboardMarkup(commands, resize_keyboard=True)
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+    welcome_text = "👋 Привет! Я бот, который помогает администратору."
+    await update.message.reply_text(welcome_text)
